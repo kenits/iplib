@@ -31,7 +31,7 @@ usable addresses. To satisfy the RFCs the following changes are made:
 
 - Count() will report 2 addresses instead of 0
 
-- FirstAddress() and NetworkAddress() will be equivalent
+- FirstAddress() and IP() will be equivalent
 
 - LastAddress() and BroadcastAddress() will be equivalent
 
@@ -147,13 +147,13 @@ func CompareIPs(a, b net.IP) int {
 // comparing their netmasks (smallest wins). This means that if a network is
 // compared to one of its subnets, the enclosing network sorts first.
 func CompareNets(a, b Net) int {
-	val := bytes.Compare(a.NetworkAddress(), b.NetworkAddress())
+	val := bytes.Compare(a.IP(), b.IP())
 	if val != 0 {
 		return val
 	}
 
-	am, _ := a.Mask.Size()
-	bm, _ := b.Mask.Size()
+	am, _ := a.Mask().Size()
+	bm, _ := b.Mask().Size()
 
 	if am == bm {
 		return 0
@@ -241,6 +241,9 @@ func DeltaIP6(a, b net.IP) *big.Int {
 // EffectiveVersion returns 4 if the net.IP either contains a v4 address or if
 // it contains the v4-encapsulating v6 address range ::ffff
 func EffectiveVersion(ip net.IP) int {
+	if ip == nil {
+		return 0
+	}
 	a := ip.To4()
 	if a == nil {
 		return 6
@@ -355,8 +358,20 @@ func IP4ToUint32(ip net.IP) uint32 {
 		return 0
 	}
 
-	i := binary.BigEndian.Uint32(ForceIP4(ip))
-	return i
+	return binary.BigEndian.Uint32(ForceIP4(ip))
+}
+
+// IP6ToUint64 converts a net.IPv6 to a uint64, but only the first 64bits of
+// address are considered meaningful (any information in the last 64bits will
+// be lost). To work with entire IPv6 addresses use IPToBigint()
+func IP6ToUint64(ip net.IP) uint64 {
+	if EffectiveVersion(ip) != 6 {
+		return 0
+	}
+	ipn := make([]byte, 8)
+	copy(ipn, ip[:8])
+
+	return binary.BigEndian.Uint64(ipn)
 }
 
 // IPToARPA takes a net.IP as input and returns a string of the version-
@@ -453,9 +468,18 @@ func Uint32ToIP4(i uint32) net.IP {
 	return ip
 }
 
+func Uint64ToIP6(i uint64) net.IP {
+	ip := make([]byte, 16)
+	binary.BigEndian.PutUint64(ip, i)
+	return ip
+}
+
 // Version returns 4 if the net.IP contains a v4 address. It will return 6 for
 // any v6 address, including the v4-encapsulating v6 address range ::ffff
 func Version(ip net.IP) int {
+	if ip == nil {
+		return 0
+	}
 	a := ip.To4()
 	if a == nil || len(ip) == 16 {
 		return 6
@@ -474,3 +498,23 @@ func generateNetLimits(version int, filler byte) net.IP {
 	}
 	return b
 }
+
+//  below this needs triage
+func is6to4(ip net.IP) bool {
+	// addresses prefixed 0000:0000:0000:0000:ffff
+	if ip[0] == 0x00 && ip[1] == 0x00 && ip[2] == 0x00 && ip[3] == 0x00 &&
+		ip[4] == 0x00 && ip[5] == 0x00 && ip[6] == 0x00 && ip[7] == 0x00 &&
+		ip[8] == 0x00 && ip[9] == 0x00 && ip[10] == 0xff && ip[11] == 0xff {
+		return true
+	}
+	return false
+}
+
+func isv4mappedv6(ip net.IP) bool {
+	// address prefixed 2002:db8
+	if ip[0] == 0x20 && ip[1] == 0x02 && ip[2] == 0x0d && ip[3] == 0xb8 {
+		return true
+	}
+	return false
+}
+

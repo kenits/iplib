@@ -139,40 +139,48 @@ func TestIP4ToARPA(t *testing.T) {
 }
 
 var IP6Tests = []struct {
-	ipaddr net.IP
-	next   net.IP
-	prev   net.IP
-	intval string
-	hexval string
-	expand string
-	inarpa string
-	binval string
+	ipaddr    string
+	next      string
+	prev      string
+	bigintval string
+	int64val  uint64
+	hostbits  string
+	hexval    string
+	expand    string
+	inarpa    string
+	binval    string
 }{
 	{
-		net.IP{32, 1, 13, 184, 133, 163, 0, 0, 0, 0, 138, 46, 3, 112, 115, 52},
-		net.IP{32, 1, 13, 184, 133, 163, 0, 0, 0, 0, 138, 46, 3, 112, 115, 53},
-		net.IP{32, 1, 13, 184, 133, 163, 0, 0, 0, 0, 138, 46, 3, 112, 115, 51},
+		"2001:db8:85a3::8a2e:370:7334",
+		"2001:db8:85a3::8a2e:370:7335",
+		"2001:db8:85a3::8a2e:370:7333",
 		"42540766452641154071740215577757643572",
+		2306139570357600256,
+		"2001:db8:85a3::",
 		"2001:db8:85a3::8a2e:370:7334",
 		"2001:0db8:85a3:0000:0000:8a2e:0370:7334",
 		"4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa",
 		"00100000.00000001.00001101.10111000.10000101.10100011.00000000.00000000.00000000.00000000.10001010.00101110.00000011.01110000.01110011.00110100",
 	},
 	{
-		net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-		net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-		net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		"::",
+		"::1",
+		"::",
 		"0",
+		0,
+		"::",
 		"::",
 		"0000:0000:0000:0000:0000:0000:0000:0000",
 		"0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa",
 		"00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000.00000000",
 	},
 	{
-		net.IP{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255},
-		net.IP{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255},
-		net.IP{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 254},
+		"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+		"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+		"ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
 		"340282366920938463463374607431768211455",
+		18446744073709551615,
+		"ffff:ffff:ffff:ffff::",
 		"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
 		"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
 		"f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.f.ip6.arpa",
@@ -182,45 +190,64 @@ var IP6Tests = []struct {
 
 func TestNextIP6(t *testing.T) {
 	for _, tt := range IP6Tests {
-		x := CompareIPs(tt.next, NextIP(tt.ipaddr))
+		x := CompareIPs(net.ParseIP(tt.next), NextIP(net.ParseIP(tt.ipaddr)))
 		if x != 0 {
-			t.Errorf("On IPv6 NextIP(%+v) expected %+v, got %+v", tt.ipaddr, tt.next, NextIP(tt.ipaddr))
+			t.Errorf("On IPv6 NextIP(%s) expected %s, got %s", tt.ipaddr, tt.next, NextIP(net.ParseIP(tt.ipaddr)))
 		}
 	}
 }
 
 func TestPrevIP6(t *testing.T) {
 	for _, tt := range IP6Tests {
-		x := CompareIPs(tt.prev, PreviousIP(tt.ipaddr))
+		x := CompareIPs(net.ParseIP(tt.prev), PreviousIP(net.ParseIP(tt.ipaddr)))
 		if x != 0 {
-			t.Errorf("On IPv6 PreviousIP(%+v) expected %+v, got %+v", tt.ipaddr, tt.prev, PreviousIP(tt.ipaddr))
+			t.Errorf("On IPv6 PreviousIP(%s) expected %s, got %s", tt.ipaddr, tt.prev, PreviousIP(net.ParseIP(tt.ipaddr)))
 		}
 	}
 }
 
 func TestIP6ToBigint(t *testing.T) {
 	for _, tt := range IP6Tests {
-		i := IPToBigint(tt.ipaddr)
-		if i.String() != tt.intval {
-			t.Errorf("On IPToBigint(%+v) expected %s, got %v", tt.ipaddr, tt.intval, i)
+		i := IPToBigint(net.ParseIP(tt.ipaddr))
+		if i.String() != tt.bigintval {
+			t.Errorf("On IPToBigint(%s) expected %s, got %s", tt.ipaddr, tt.bigintval, i.String())
+		}
+	}
+}
+
+func TestIP6ToUint64(t *testing.T) {
+	for _, tt := range IP6Tests {
+		i := IP6ToUint64(net.ParseIP(tt.ipaddr))
+		if i != tt.int64val {
+			t.Errorf("On IP6ToUint64(%s) expected %d, got %d", tt.ipaddr, tt.int64val, i)
+		}
+	}
+}
+
+func TestUint64ToIP6(t *testing.T) {
+	for _, tt := range IP6Tests {
+		ip := Uint64ToIP6(tt.int64val)
+		x := CompareIPs(ip, net.ParseIP(tt.hostbits))
+		if x != 0 {
+			t.Errorf("On IPv6 Uint64ToIP6(%s) expected %s, got %s", tt.ipaddr, tt.hostbits, ip)
 		}
 	}
 }
 
 func TestIP6ToBinaryString(t *testing.T) {
 	for _, tt := range IP6Tests {
-		s := IPToBinaryString(tt.ipaddr)
+		s := IPToBinaryString(net.ParseIP(tt.ipaddr))
 		if s != tt.binval {
-			t.Errorf("On IPv6 IPToBinaryString(%+v) expected %s, got %s", tt.ipaddr, tt.binval, s)
+			t.Errorf("On IPv6 IPToBinaryString(%s) expected %s, got %s", tt.ipaddr, tt.binval, s)
 		}
 	}
 }
 
 func TestIP6ToHexString(t *testing.T) {
 	for _, tt := range IP6Tests {
-		s := IPToHexString(tt.ipaddr)
+		s := IPToHexString(net.ParseIP(tt.ipaddr))
 		if s != tt.hexval {
-			t.Errorf("On IPv6 IPToHexString(%+v) expected %s, got %s", tt.ipaddr, tt.hexval, s)
+			t.Errorf("On IPv6 IPToHexString(%s) expected %s, got %s", tt.ipaddr, tt.hexval, s)
 		}
 	}
 }
@@ -228,18 +255,18 @@ func TestIP6ToHexString(t *testing.T) {
 func TestBigintToIP6(t *testing.T) {
 	for _, tt := range IP6Tests {
 		z := big.Int{}
-		z.SetString(tt.intval, 10)
+		z.SetString(tt.bigintval, 10)
 		ip := BigintToIP6(&z)
-		x := CompareIPs(ip, tt.ipaddr)
+		x := CompareIPs(ip, net.ParseIP(tt.ipaddr))
 		if x != 0 {
-			t.Errorf("On BigintToIP6(%s) expected %+v, got %+v", tt.intval, tt.ipaddr, ip)
+			t.Errorf("On BigintToIP6(%s) expected %s, got %s", tt.bigintval, tt.ipaddr, ip)
 		}
 	}
 }
 
 func TestExpandIP6(t *testing.T) {
 	for _, tt := range IP6Tests {
-		s := ExpandIP6(tt.ipaddr)
+		s := ExpandIP6(net.ParseIP(tt.ipaddr))
 		if s != tt.expand {
 			t.Errorf("On ExpandIP6(%s) expected '%s', got '%s'", tt.ipaddr, tt.expand, s)
 		}
@@ -248,7 +275,7 @@ func TestExpandIP6(t *testing.T) {
 
 func TestIP6ToARPA(t *testing.T) {
 	for _, tt := range IP6Tests {
-		s := IPToARPA(tt.ipaddr)
+		s := IPToARPA(net.ParseIP(tt.ipaddr))
 		if s != tt.inarpa {
 			t.Errorf("On IP4ToARPA(%s) expected %s, got %s", tt.ipaddr, tt.inarpa, s)
 		}
@@ -445,6 +472,11 @@ var IPVersionTests = []struct {
 		net.IP{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255},
 		6,
 		6,
+	},
+	{
+		nil,
+		0,
+		0,
 	},
 	// these are the 6-to-4 versions of the first 3 test cases
 	{
@@ -876,8 +908,8 @@ func TestNet_NetworkAddress(t *testing.T) {
 			continue
 		}
 		_, ipn, _ := ParseCIDR(tt.inaddrStr)
-		if addr := ipn.NetworkAddress(); !tt.network.Equal(addr) {
-			t.Errorf("On %s got Network.NetworkAddress == %v, want %v", tt.inaddrStr, addr, tt.network)
+		if addr := ipn.IP(); !tt.network.Equal(addr) {
+			t.Errorf("On %s got Network.IP == %v, want %v", tt.inaddrStr, addr, tt.network)
 		}
 	}
 }

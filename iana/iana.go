@@ -19,9 +19,10 @@ The data-set for the IANA registries is available from:
 package iana
 
 import (
-	"github.com/c-robinson/iplib"
 	"net"
 	"sort"
+
+	"github.com/c-robinson/iplib"
 )
 
 // Registry holds the aggregated network list from IANA's v4 and v6 registries.

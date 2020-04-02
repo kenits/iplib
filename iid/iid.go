@@ -60,7 +60,7 @@ var (
 
 // Registry holds the aggregated network list from IANA's "Reserved IPv6
 // Interface Identifiers" as specified in RFC5453. In order to be compliant
-// with RFC 7217's algorithm for "Semantically Opaque Interface Identifiers"
+// with RFC7217's algorithm for "Semantically Opaque Interface Identifiers"
 // addresses should be checked against this registry to make sure there are
 // no conflicts
 var Registry []*Reservation
