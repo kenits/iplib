@@ -85,17 +85,14 @@ func (n Net6) Count() *big.Int {
 		return big.NewInt(1)
 	}
 	var z, e = big.NewInt(2), big.NewInt(int64(exp))
-	if n.version == 6 {
-		return z.Exp(z, e, nil)
-	}
-	return z.Sub(z.Exp(z, e, nil), big.NewInt(2))
+	return z.Exp(z, e, nil)
 }
 
-func (n Net6) Enumerate(size, offset int) []net.IP {
-	if !n.Count().IsInt64() {
-
+func (n Net6) Enumerate(size, offset uint64) []net.IP {
+	count := uint64(MaxUint)
+	if n.Count().IsInt64() {
+		count = n.Count().Uint64()
 	}
-	count := n.Count()
 
 	// offset exceeds total, return an empty array
 	if offset > count {
@@ -108,27 +105,10 @@ func (n Net6) Enumerate(size, offset int) []net.IP {
 		size = count - offset
 	}
 
-	// Handle edge-case mask sizes
-	if count == 1 { // Count() returns 1 if host-bits == 0
-		return []net.IP{n.IP}
-
-	}
-	if count == 0 { // Count() returns 0 if host-bits == 1
-		addrList := []net.IP{
-			n.FirstAddress(),
-			n.LastAddress(),
-		}
-
-		return addrList[offset:]
-	}
-
-	netu := IP4ToUint32(n.FirstAddress())
-	netu += offset
-
 	addrList := make([]net.IP, size)
 
-	addrList[0] = Uint32ToIP4(netu)
-	for i := uint32(1); i <= size-1; i++ {
+	addrList[0] = IncrementIP6By(n.FirstAddress(), new(big.Int).SetUint64(offset))
+	for i := uint64(1); i <= size-1; i++ {
 		addrList[i] = NextIP(addrList[i-1])
 	}
 	return addrList
@@ -185,7 +165,7 @@ func (n Net6) NextIP(ip net.IP) (net.IP, error) {
 
 // NextNet takes a CIDR mask-size as an argument and attempts to create a new
 // Net object just after the current Net, at the requested mask length
-func (n Net6) NextNet(masklen int) (*Net6,  error) {
+func (n Net6) NextNet(masklen int) (*Net6, error) {
 	return NewNet6(NextIP(n.LastAddress()), masklen)
 }
 
