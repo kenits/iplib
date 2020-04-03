@@ -52,6 +52,7 @@ import (
 const (
 	// MaxIPv4 is the max size of a uint32, also the IPv4 address space
 	MaxIPv4 = 1<<32 - 1
+	MaxUint = 1<<64 - 1
 )
 
 var (
@@ -244,11 +245,16 @@ func EffectiveVersion(ip net.IP) int {
 	if ip == nil {
 		return 0
 	}
-	a := ip.To4()
-	if a == nil {
-		return 6
+
+	if len(ip) == 4 {
+		return 4
 	}
-	return 4
+
+	if is6to4(ip) {
+		return 4
+	}
+
+	return 6
 }
 
 // ExpandIP6 takes a net.IP containing an IPv6 address and returns a string of
@@ -480,11 +486,12 @@ func Version(ip net.IP) int {
 	if ip == nil {
 		return 0
 	}
-	a := ip.To4()
-	if a == nil || len(ip) == 16 {
-		return 6
+
+	if len(ip) == 4 {
+		return 4
 	}
-	return 4
+
+	return 6
 }
 
 func generateNetLimits(version int, filler byte) net.IP {
@@ -499,7 +506,6 @@ func generateNetLimits(version int, filler byte) net.IP {
 	return b
 }
 
-//  below this needs triage
 func is6to4(ip net.IP) bool {
 	// addresses prefixed 0000:0000:0000:0000:ffff
 	if ip[0] == 0x00 && ip[1] == 0x00 && ip[2] == 0x00 && ip[3] == 0x00 &&
@@ -509,12 +515,3 @@ func is6to4(ip net.IP) bool {
 	}
 	return false
 }
-
-func isv4mappedv6(ip net.IP) bool {
-	// address prefixed 2002:db8
-	if ip[0] == 0x20 && ip[1] == 0x02 && ip[2] == 0x0d && ip[3] == 0xb8 {
-		return true
-	}
-	return false
-}
-
