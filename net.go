@@ -8,9 +8,20 @@ import (
 type Net interface {
 	Contains(ip net.IP) bool
 	ContainsNet(network Net) bool
+	FirstAddress() net.IP
+	LastAddress() net.IP
 	Mask() net.IPMask
 	IP() net.IP
 	Version() int
+}
+
+// NewNet returns a new Net object containing ip at the specified masklen.
+func NewNet(ip net.IP, masklen int) (Net, error) {
+	version := Version(ip)
+	if version == 6 {
+		return NewNet6(ip, masklen)
+	}
+	return NewNet4(ip, masklen)
 }
 
 // NewNetBetween takes two net.IP's as input and will return the largest
@@ -22,11 +33,11 @@ func NewNetBetween(a, b net.IP) (Net, bool, error) {
 	var exact = false
 	v := CompareIPs(a, b)
 	if v != -1 {
-		return Net{}, exact, ErrNoValidRange
+		return nil, exact, ErrNoValidRange
 	}
 
 	if Version(a) != Version(b) {
-		return Net{}, exact, ErrNoValidRange
+		return nil, exact, ErrNoValidRange
 	}
 
 	maskMax := 128
@@ -37,10 +48,13 @@ func NewNetBetween(a, b net.IP) (Net, bool, error) {
 	ipa := NextIP(a)
 	ipb := PreviousIP(b)
 	for i := 1; i <= maskMax; i++ {
-		xnet := NewNet(ipa, i)
+		xnet, err := NewNet(ipa, i)
+		if err != nil {
+			return nil, exact, err
+		}
 
-		va := CompareIPs(xnet.NetworkAddress(), ipa)
-		vb := CompareIPs(xnet.BroadcastAddress(), ipb)
+		va := CompareIPs(xnet.FirstAddress(), ipa)
+		vb := CompareIPs(xnet.LastAddress(), ipb)
 		if va >= 0 && vb <= 0 {
 			if va == 0 && vb == 0 {
 				exact = true
@@ -48,7 +62,7 @@ func NewNetBetween(a, b net.IP) (Net, bool, error) {
 			return xnet, exact, nil
 		}
 	}
-	return Net{}, exact, ErrNoValidRange
+	return nil, exact, ErrNoValidRange
 }
 
 // ParseCIDR returns a new Net object. It is a passthrough to net.ParseCIDR
@@ -66,7 +80,6 @@ func ParseCIDR(s string) (net.IP, Net, error) {
 	masklen, _ := ipnet.Mask.Size()
 
 	if strings.Contains(s, ".") {
-		//masklen, _ := ipnet.Mask.Size()
 		n, err := NewNet4(ForceIP4(ip), masklen)
 		return ForceIP4(ip), n, err
 	}
