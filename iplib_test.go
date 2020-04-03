@@ -1155,7 +1155,7 @@ func TestNet_SubnetBadMasklen(t *testing.T) {
 	}
 }
 
-func  TestNet_PreviousNet(t *testing.T) {
+func TestNet_PreviousNet(t *testing.T) {
 	for _, tt := range subnetTests {
 		_, inet, _ := ParseCIDR(tt.in)
 		_, pneta, _ := ParseCIDR(tt.prevnet)
@@ -1168,7 +1168,7 @@ func  TestNet_PreviousNet(t *testing.T) {
 	}
 }
 
-func  TestNet_NextNet(t *testing.T) {
+func TestNet_NextNet(t *testing.T) {
 	for _, tt := range subnetTests {
 		_, inet, _ := ParseCIDR(tt.in)
 		_, pneta, _ := ParseCIDR(tt.nextnet)

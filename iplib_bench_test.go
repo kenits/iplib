@@ -133,7 +133,7 @@ func BenchmarkNet_Count4(b *testing.B) {
 	_, n, _ := ParseCIDR("192.168.0.0/24")
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		 _ = n.Count()
+		_ = n.Count()
 	}
 }
 

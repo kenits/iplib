@@ -10,15 +10,15 @@ import (
 // the IPv6 implementation
 type Net4 struct {
 	net.IPNet
-	version  int
-	length   int
+	version int
+	length  int
 }
 
 // NewNet4 returns a new Net4 object containing ip at the specified masklen.
 func NewNet4(ip net.IP, masklen int) (*Net4, error) {
 	var maskMax int
 	version := EffectiveVersion(ip)
-	if version !=4 {
+	if version != 4 {
 		return nil, ErrUnsupportedIPVer
 	} else {
 		maskMax = 32
@@ -144,6 +144,7 @@ func (n Net4) Mask() net.IPMask {
 func (n Net4) IP() net.IP {
 	return n.IPNet.IP
 }
+
 // NetworkAddress returns the network address for the represented network, e.g.
 // the lowest IP address in the given block
 func (n Net4) NetworkAddress() net.IP {
