@@ -9,9 +9,10 @@ type Net interface {
 	Contains(ip net.IP) bool
 	ContainsNet(network Net) bool
 	FirstAddress() net.IP
+	IP() net.IP
 	LastAddress() net.IP
 	Mask() net.IPMask
-	IP() net.IP
+	String() string
 	Version() int
 }
 
@@ -63,6 +64,34 @@ func NewNetBetween(a, b net.IP) (Net, bool, error) {
 		}
 	}
 	return nil, exact, ErrNoValidRange
+}
+
+// ByNet implements sort.Interface for iplib.Net based on the
+// starting address of the netblock, with the netmask as a tie breaker. So if
+// two Networks are submitted and one is a subset of the other, the enclosing
+// network will be returned first.
+type ByNet []Net
+
+// Len implements sort.interface Len(), returning the length of the
+// ByNetwork array
+func (bn ByNet) Len() int {
+	return len(bn)
+}
+
+// Swap implements sort.interface Swap(), swapping two elements in our array
+func (bn ByNet) Swap(a, b int) {
+	bn[a], bn[b] = bn[b], bn[a]
+}
+
+// Less implements sort.interface Less(), given two elements in the array it
+// returns true if the LHS should sort before the RHS. For details on the
+// implementation, see CompareNets()
+func (bn ByNet) Less(a, b int) bool {
+	val := CompareNets(bn[a], bn[b])
+	if val == -1 {
+		return true
+	}
+	return false
 }
 
 // ParseCIDR returns a new Net object. It is a passthrough to net.ParseCIDR

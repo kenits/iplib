@@ -89,34 +89,6 @@ func (bi ByIP) Less(a, b int) bool {
 	return false
 }
 
-// ByNet implements sort.Interface for iplib.Net based on the
-// starting address of the netblock, with the netmask as a tie breaker. So if
-// two Networks are submitted and one is a subset of the other, the enclosing
-// network will be returned first.
-type ByNet []Net
-
-// Len implements sort.interface Len(), returning the length of the
-// ByNetwork array
-func (bn ByNet) Len() int {
-	return len(bn)
-}
-
-// Swap implements sort.interface Swap(), swapping two elements in our array
-func (bn ByNet) Swap(a, b int) {
-	bn[a], bn[b] = bn[b], bn[a]
-}
-
-// Less implements sort.interface Less(), given two elements in the array it
-// returns true if the LHS should sort before the RHS. For details on the
-// implementation, see CompareNets()
-func (bn ByNet) Less(a, b int) bool {
-	val := CompareNets(bn[a], bn[b])
-	if val == -1 {
-		return true
-	}
-	return false
-}
-
 // BigintToIP6 converts a big.Int to an ip6 address and returns it as a net.IP
 func BigintToIP6(z *big.Int) net.IP {
 	b := z.Bytes()
