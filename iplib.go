@@ -3,25 +3,30 @@ Package iplib provides enhanced tools for working with IP networks and
 addresses. These tools are built upon and extend the generic functionality
 found in the Go "net" package.
 
-IPLib comes in two basic parts: a set of utility features for working with
-net.IP (sort, increment, decrement, delta, compare; convert to hex-string or
-integer) and an enhancement of net.IPNet (iplib.Net) that can calculate the
-broadcast, first and last IP addresses in its block, as well as enumerating
-the block into a []net.IP, and incrementing or decrementing within the
-boundaries of the block.
+The main library comes in two parts: a series of utilities for working with
+net.IP (sort, increment, decrement, delta, compare, convert to binary or hex-
+string, convert between net.IP and integer) and an enhancement of net.IPNet
+called iplib.Net that can calculate the first and last IPs of a block as well
+as enumerating the block into []net.IP, incrementing and decrementing within
+the boundaries of the block and creating sub- or super-nets of it.
 
-For the most part IPLib tries to ensure that v4 and v6 addresses are treated
-equally and managed transparently. The one exception is those functions which
-return or require a total as an integer: for these a version-independent
-function is provided and limited to uint32, but there are also v4 and
-v6 variants, the v6 function will always take *big.Int and be able to access
-the entire v6 address space. In all cases the version-independent function is
-simply a router between the v4 and v6 functions that internally converts
-uint32 to big.Int when necessary.
+For most features iplib exposes a v4 and a v6 variant to handle each network
+properly, but in all cases there is a generic function that handles any IP and
+routes between them. One caveat to this is those functions that require or
+return an integer value representing the address, in these cases the IPv4
+variants take an int32 as input while the IPv6 functions require a *big.Int
+in order to work with the 128bits of address.
 
 For functions where it is possible to exceed the address-space the rule is
 that underflows return the version-appropriate all-zeroes address while
 overflows return the all-ones.
+
+There are also two submodules under iplib: the iplib/iid module contains
+functions for generating RFC 7217-compliant IPv6 Interface ID addresses, and
+iplib/iana imports the IANA IP Special Registries and exposes functions for
+comparing IP addresses against those registries to determine if the IP is part
+of a special reservation (for example RFC 1918 private networks or the RFC 3849
+documentation network).
 
 A special note about IP blocks with one host bit set (/31, /127): RFC3021 (v4)
 and RFC6164 (v6) describe a case for using these netblocks to number each end
@@ -212,7 +217,9 @@ func DeltaIP6(a, b net.IP) *big.Int {
 }
 
 // EffectiveVersion returns 4 if the net.IP either contains a v4 address or if
-// it contains the v4-encapsulating v6 address range ::ffff
+// it contains the v4-encapsulating v6 address range ::ffff. Note that the
+// second example below is a v6 address but reports as v4 because it is in the
+// 6-to-4 block. This mirrors how Go's `net` package would treat the address
 func EffectiveVersion(ip net.IP) int {
 	if ip == nil {
 		return 0
@@ -230,7 +237,7 @@ func EffectiveVersion(ip net.IP) int {
 }
 
 // ExpandIP6 takes a net.IP containing an IPv6 address and returns a string of
-// the address fully expanded (:: -> 0000:0000:0000:0000:0000:0000:0000:0000)
+// the address fully expanded
 func ExpandIP6(ip net.IP) string {
 	var h []byte
 	var s string
@@ -371,8 +378,7 @@ func IP4ToARPA(ip net.IP) string {
 
 // IP6ToARPA takes a net.IP containing an IPv6 address and returns a string of
 // the address represented as a sequence of 4-bit nibbles in reverse order and
-// followed by the IPv6 ARPA domain "ip6.arpa". '2001:db8::1' is rendered as:
-// "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa"
+// followed by the IPv6 ARPA domain "ip6.arpa"
 func IP6ToARPA(ip net.IP) string {
 	var domain = "ip6.arpa"
 	var h []byte
@@ -399,7 +405,7 @@ func IPToBigint(ip net.IP) *big.Int {
 // benchmarks doing so, as well as iterating over the entire v4 address space.
 func NextIP(ip net.IP) net.IP {
 	var ipn []byte
-	if EffectiveVersion(ip) == 4 {
+	if Version(ip) == 4 {
 		ipn = make([]byte, 4)
 		copy(ipn, ip)
 	} else {
@@ -422,7 +428,7 @@ func NextIP(ip net.IP) net.IP {
 // benchmarks doing so, as well as iterating over the entire v4 address space.
 func PreviousIP(ip net.IP) net.IP {
 	var ipn []byte
-	if EffectiveVersion(ip) == 4 {
+	if Version(ip) == 4 {
 		ipn = make([]byte, 4)
 		copy(ipn, ip.To4())
 	} else {
@@ -453,7 +459,11 @@ func Uint64ToIP6(i uint64) net.IP {
 }
 
 // Version returns 4 if the net.IP contains a v4 address. It will return 6 for
-// any v6 address, including the v4-encapsulating v6 address range ::ffff
+// any v6 address, including the v4-encapsulating v6 address range ::ffff.
+// Contrast with EffectiveVersion above and note that in the provided example
+// ForceIP4() is used because, by default, net.ParseIP() stores IPv4 addresses
+// as 6-to-4 encapsulated v6 addresses. One consequence of which is that
+// it is impossible to use a 6-to-4 address as a v6 address
 func Version(ip net.IP) int {
 	if ip == nil {
 		return 0
