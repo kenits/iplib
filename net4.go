@@ -218,7 +218,6 @@ func (n Net4) String() string {
 	return n.IPNet.String()
 }
 
-
 // Subnet takes a CIDR mask-size as an argument and carves the current Net
 // object into subnets of that size, returning them as a []Net. The mask
 // provided must be a larger-integer than the current mask. If set to 0 Subnet

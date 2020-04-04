@@ -225,7 +225,7 @@ func (n Net6) Subnet(masklen int) ([]Net6, error) {
 	}
 
 	mask := net.CIDRMask(masklen, all)
-	netlist := []Net6{Net6{net.IPNet{n.IP(), mask}, n.version, n.length, n.netbytes}}
+	netlist := []Net6{{net.IPNet{n.IP(), mask}, n.version, n.length, n.netbytes}}
 
 	for CompareIPs(netlist[len(netlist)-1].LastAddress(), n.LastAddress()) == -1 {
 		ng := net.IPNet{IP: NextIP(netlist[len(netlist)-1].LastAddress()), Mask: mask}

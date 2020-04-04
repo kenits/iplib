@@ -575,5 +575,3 @@ func compareNet4ArraysToStringRepresentation(a []Net4, b []string) bool {
 
 	return true
 }
-
-
