@@ -15,18 +15,18 @@ type Net4 struct {
 }
 
 // NewNet4 returns a new Net4 object containing ip at the specified masklen.
-func NewNet4(ip net.IP, masklen int) (*Net4, error) {
+func NewNet4(ip net.IP, masklen int) (Net4, error) {
 	var maskMax int
 	version := EffectiveVersion(ip)
 	if version != 4 {
-		return nil, ErrUnsupportedIPVer
+		return Net4{}, ErrUnsupportedIPVer
 	} else {
 		maskMax = 32
 	}
 	mask := net.CIDRMask(masklen, maskMax)
 	n := net.IPNet{IP: ip.Mask(mask), Mask: mask}
 
-	return &Net4{IPNet: n, version: version, length: net.IPv4len}, nil
+	return Net4{IPNet: n, version: version, length: net.IPv4len}, nil
 }
 
 // BroadcastAddress returns the broadcast address for the represented network.
@@ -136,7 +136,7 @@ func (n Net4) LastAddress() net.IP {
 
 // Mask returns the netmask of the netblock
 func (n Net4) Mask() net.IPMask {
-	return n.Mask()
+	return n.IPNet.Mask
 }
 
 // IP returns the network address for the represented network, e.g.
@@ -175,7 +175,7 @@ func (n Net4) NextIP(ip net.IP) (net.IP, error) {
 
 // NextNet takes a CIDR mask-size as an argument and attempts to create a new
 // Net object just after the current Net, at the requested mask length
-func (n Net4) NextNet(masklen int) (*Net4, error) {
+func (n Net4) NextNet(masklen int) (Net4, error) {
 	return NewNet4(NextIP(n.BroadcastAddress()), masklen)
 }
 
@@ -209,9 +209,15 @@ func (n Net4) PreviousIP(ip net.IP) (net.IP, error) {
 // iplib.Net{192.168.4.0/22}.Subnet(21) -> 192.168.0.0/21
 //
 // In the above case 192.168.4.0/22 is part of 192.168.0.0/21
-func (n Net4) PreviousNet4(masklen int) (*Net4, error) {
+func (n Net4) PreviousNet(masklen int) (Net4, error) {
 	return NewNet4(PreviousIP(n.IP()), masklen)
 }
+
+// String returns the CIDR notation of the enclosed network e.g. 192.168.0.1/24
+func (n Net4) String() string {
+	return n.IPNet.String()
+}
+
 
 // Subnet takes a CIDR mask-size as an argument and carves the current Net
 // object into subnets of that size, returning them as a []Net. The mask
@@ -221,7 +227,7 @@ func (n Net4) PreviousNet4(masklen int) (*Net4, error) {
 // Examples:
 // Net{192.168.1.0/24}.Subnet(0)  -> []Net{192.168.1.0/25, 192.168.1.128/25}
 // Net{192.168.1.0/24}.Subnet(26) -> []Net{192.168.1.0/26, 192.168.1.64/26, 192.168.1.128/26, 192.168.1.192/26}
-func (n Net4) Subnet4(masklen int) ([]*Net4, error) {
+func (n Net4) Subnet(masklen int) ([]Net4, error) {
 	ones, all := n.Mask().Size()
 	if ones > masklen {
 		return nil, ErrBadMaskLength
@@ -232,11 +238,11 @@ func (n Net4) Subnet4(masklen int) ([]*Net4, error) {
 	}
 
 	mask := net.CIDRMask(masklen, all)
-	netlist := []*Net4{{net.IPNet{n.IP(), mask}, n.version, n.length}}
+	netlist := []Net4{{net.IPNet{n.IP(), mask}, n.version, n.length}}
 
 	for CompareIPs(netlist[len(netlist)-1].BroadcastAddress(), n.BroadcastAddress()) == -1 {
 		ng := net.IPNet{IP: NextIP(netlist[len(netlist)-1].BroadcastAddress()), Mask: mask}
-		netlist = append(netlist, &Net4{ng, n.version, n.length})
+		netlist = append(netlist, Net4{ng, n.version, n.length})
 	}
 	return netlist, nil
 }
@@ -249,10 +255,10 @@ func (n Net4) Subnet4(masklen int) ([]*Net4, error) {
 // Examples:
 // Net{192.168.1.0/24}.Supernet(0)  -> Net{192.168.0.0/23}
 // Net{192.168.1.0/24}.Supernet(22) -> Net{Net{192.168.0.0/22}
-func (n Net4) Supernet(masklen int) (*Net4, error) {
+func (n Net4) Supernet(masklen int) (Net4, error) {
 	ones, all := n.Mask().Size()
 	if ones < masklen {
-		return nil, ErrBadMaskLength
+		return Net4{}, ErrBadMaskLength
 	}
 
 	if masklen == 0 {
@@ -261,7 +267,7 @@ func (n Net4) Supernet(masklen int) (*Net4, error) {
 
 	mask := net.CIDRMask(masklen, all)
 	ng := net.IPNet{IP: n.IP().Mask(mask), Mask: mask}
-	return &Net4{ng, n.version, n.length}, nil
+	return Net4{ng, n.version, n.length}, nil
 }
 
 // Version returns the version of IP for the enclosed netblock, Either 4 or 6.

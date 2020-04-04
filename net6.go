@@ -46,19 +46,19 @@ type Net6 struct {
 }
 
 // NewNet6 returns a new Net6 object containing ip at the specified masklen.
-func NewNet6(ip net.IP, masklen int) (*Net6, error) {
+func NewNet6(ip net.IP, masklen int) (Net6, error) {
 	version := EffectiveVersion(ip)
 	if version != 6 {
-		return nil, ErrUnsupportedIPVer
+		return Net6{}, ErrUnsupportedIPVer
 	}
 	if masklen > 128 {
-		return nil, ErrBadMaskLength
+		return Net6{}, ErrBadMaskLength
 	}
 
 	mask := net.CIDRMask(masklen, 128)
 	n := net.IPNet{IP: ip.Mask(mask), Mask: mask}
 
-	return &Net6{IPNet: n, version: version, length: net.IPv6len, netbytes: 8}, nil
+	return Net6{IPNet: n, version: version, length: net.IPv6len, netbytes: 8}, nil
 }
 
 // Contains returns true if ip is contained in the represented netblock
@@ -142,13 +142,13 @@ func (n Net6) LastAddress() net.IP {
 
 // Mask returns the netmask of the netblock
 func (n Net6) Mask() net.IPMask {
-	return n.Mask()
+	return n.IPNet.Mask
 }
 
 // IP returns the network address for the represented network, e.g.
 // the lowest IP address in the given block
 func (n Net6) IP() net.IP {
-	return n.IP()
+	return n.IPNet.IP
 }
 
 // NextIP takes a net.IP as an argument and attempts to increment it by one
@@ -165,7 +165,7 @@ func (n Net6) NextIP(ip net.IP) (net.IP, error) {
 
 // NextNet takes a CIDR mask-size as an argument and attempts to create a new
 // Net object just after the current Net, at the requested mask length
-func (n Net6) NextNet(masklen int) (*Net6, error) {
+func (n Net6) NextNet(masklen int) (Net6, error) {
 	return NewNet6(NextIP(n.LastAddress()), masklen)
 }
 
@@ -185,7 +185,7 @@ func (n Net6) PreviousIP(ip net.IP) (net.IP, error) {
 // object just before the current one, at the requested mask length. If the
 // specified mask is for a larger network than the current one then the new
 // network may encompass the current one
-func (n Net6) PreviousNet(masklen int) (*Net6, error) {
+func (n Net6) PreviousNet(masklen int) (Net6, error) {
 	return NewNet6(PreviousIP(n.FirstAddress()), masklen)
 }
 
@@ -214,7 +214,7 @@ func (n Net6) String() string {
 // Examples:
 // Net{192.168.1.0/24}.Subnet(0)  -> []Net{192.168.1.0/25, 192.168.1.128/25}
 // Net{192.168.1.0/24}.Subnet(26) -> []Net{192.168.1.0/26, 192.168.1.64/26, 192.168.1.128/26, 192.168.1.192/26}
-func (n Net6) Subnet(masklen int) ([]*Net6, error) {
+func (n Net6) Subnet(masklen int) ([]Net6, error) {
 	ones, all := n.Mask().Size()
 	if ones > masklen {
 		return nil, ErrBadMaskLength
@@ -225,11 +225,11 @@ func (n Net6) Subnet(masklen int) ([]*Net6, error) {
 	}
 
 	mask := net.CIDRMask(masklen, all)
-	netlist := []*Net6{&Net6{net.IPNet{n.IP(), mask}, n.version, n.length, n.netbytes}}
+	netlist := []Net6{Net6{net.IPNet{n.IP(), mask}, n.version, n.length, n.netbytes}}
 
 	for CompareIPs(netlist[len(netlist)-1].LastAddress(), n.LastAddress()) == -1 {
 		ng := net.IPNet{IP: NextIP(netlist[len(netlist)-1].LastAddress()), Mask: mask}
-		netlist = append(netlist, &Net6{ng, n.version, n.length, n.netbytes})
+		netlist = append(netlist, Net6{ng, n.version, n.length, n.netbytes})
 	}
 	return netlist, nil
 }
@@ -242,10 +242,10 @@ func (n Net6) Subnet(masklen int) ([]*Net6, error) {
 // Examples:
 // Net{192.168.1.0/24}.Supernet(0)  -> Net{192.168.0.0/23}
 // Net{192.168.1.0/24}.Supernet(22) -> Net{Net{192.168.0.0/22}
-func (n Net6) Supernet(masklen int) (*Net6, error) {
+func (n Net6) Supernet(masklen int) (Net6, error) {
 	ones, all := n.Mask().Size()
 	if ones < masklen {
-		return nil, ErrBadMaskLength
+		return Net6{}, ErrBadMaskLength
 	}
 
 	if masklen == 0 {
@@ -254,7 +254,7 @@ func (n Net6) Supernet(masklen int) (*Net6, error) {
 
 	mask := net.CIDRMask(masklen, all)
 	ng := net.IPNet{IP: n.IP().Mask(mask), Mask: mask}
-	return &Net6{ng, n.version, n.length, n.netbytes}, nil
+	return Net6{ng, n.version, n.length, n.netbytes}, nil
 }
 
 // Version returns the version of IP for the enclosed netblock as an int. 6
