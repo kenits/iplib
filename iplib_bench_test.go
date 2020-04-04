@@ -131,65 +131,73 @@ func BenchmarkIncrementIPBy_v6(b *testing.B) {
 
 func BenchmarkNet_Count4(b *testing.B) {
 	_, n, _ := ParseCIDR("192.168.0.0/24")
+	n4 := n.(Net4)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		_ = n.Count()
+		_ = n4.Count()
 	}
 }
 
 func BenchmarkNet_Count6(b *testing.B) {
 	_, n, _ := ParseCIDR("2001:db8::/98")
+	n6 := n.(Net6)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		_ = n.Count()
+		_ = n6.Count()
 	}
 }
 
 func BenchmarkNet_Subnet_v4(b *testing.B) {
 	_, n, _ := ParseCIDR("192.168.0.0/24")
+	n4 := n.(Net4)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = n.Subnet(25)
+		_, _ = n4.Subnet(25)
 	}
 }
 
 func BenchmarkNet_Subnet_v6(b *testing.B) {
 	_, n, _ := ParseCIDR("2001:db8::/98")
+	n4 := n.(Net4)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = n.Subnet(99)
+		_, _ = n4.Subnet(99)
 	}
 }
 
 func BenchmarkNet_PreviousNet_v4(b *testing.B) {
 	_, n, _ := ParseCIDR("192.168.0.0/24")
+	n4 := n.(Net4)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		_ = n.PreviousNet(24)
+		_, _ = n4.PreviousNet(24)
 	}
 }
 
 func BenchmarkNet_PreviousNet_v6(b *testing.B) {
 	_, n, _ := ParseCIDR("2001:db8::/98")
+	n6 := n.(Net6)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		_ = n.PreviousNet(24)
+		_, _ = n6.PreviousNet(24)
 	}
 }
 
 func BenchmarkNet_NextNet_v4(b *testing.B) {
 	_, n, _ := ParseCIDR("192.168.0.0/24")
+	n4 := n.(Net4)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		_ = n.NextNet(24)
+		_, _ = n4.NextNet(24)
 	}
 }
 
 func BenchmarkNet_NextNet_v6(b *testing.B) {
 	_, n, _ := ParseCIDR("2001:db8::/98")
+	n6 := n.(Net6)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		_ = n.NextNet(24)
+		_, _ = n6.NextNet(24)
 	}
 }
 
