@@ -10,55 +10,66 @@ var (
 	ErrUnsupportedIPVer = errors.New("supplied IP version unsupported")
 )
 
-// Net6 is an implementation of Net for IPv6 that conforms to the RIPE "Best
-// Current Operational Practice for Operators." This has the following
-// implications:
+// Net6 is an implementation of Net that supports IPv6 operations. To
+// initialize a Net6 object you must supply a network address and mask as
+// with Net4 but you must also supply an integer value between 0 and 128 that
+// Net6 will use to determine what part of the address is given over to
+// hosts, which this library will refer to as the "hostmask". If set to a non
+// zero value the hostmask is applied in the opposite direction from the
+// netmask, and Net6 will only operate on the area between the two masks. An
+// example may be helpful:
 //
-// * NewNet6() requires a masklen between 0 - 63
+// This case treats the IPv6 block just like a giant IPv4 block with a netmask
+// of /56
+// n := NewNet6(2001:db8::, 56, 0)
+//   Address            2001:db8::
+//   Netmask            ffff:ffff:ffff:ff00:0000:0000:0000:0000
+//   Hostmask           0000:0000:0000:0000:0000:0000:0000:0000
+//   First              2001:0db8:0000:0000:0000:0000:0000:0000
+//   Last               2001:0db8:0000:00ff:ffff:ffff:ffff:ffff
+//   Count              4722366482869645213696
 //
-// * Enumerate(), NextIP() and PreviousIP() return IP addresses on a 64bit
-//   boundary. The idea is that the 128bits of IPv6 address are split between
-//   64bits for the network and 64bits for "interface identity." This means
-//   that a /48 network has 65,536 addresses, not 1.2 septillion
+// Here we allocate the same block but with a hostmask of /64. Note that the
+// hostmask is applied from the rightmost bit; Net6 will only consider the
+// octet between the 56th and 64th bits to be meaningful so will only allocate
+// 256 hosts
+// n:= NewNet6(2001:db8::, 56, 64)
+//   Address            2001:db8::
+//   Netmask            ffff:ffff:ffff:ff00:0000:0000:0000:0000
+//   Hostmask           0000:0000:0000:0000:ffff:ffff:ffff:ffff
+//   First              2001:0db8:0000:0000:0000:0000:0000:0000
+//   Last               2001:0db8:0000:00ff:0000:0000:0000:0000
+//   Count              256
 //
-// * Count() returns an int, not a *big.Int, since 65,536 fits easily into
-//   a standard integer type while 1.2 septillion would not
+// In the first example the second IP address of the netblock is 2001:db8::1,
+// in the second example it is 2001:db8:0:0:1::
 //
-// * Subnet() behaves in accordance with the guidelines: if the netblock is
-//   larger than /48, Subnet() will return /48's when given 0 as an argument,
-//   if the netblock is a /48 it will return /56's when given a 0. It is an
-//   error to use >63
-//
-// Net6 is not suitable for assigning /127's to WAN links because it doesn't
-// understand /127
-
-// Net6 is an implementation of iplib.Net intended for IPv6 netblocks. The
-// most important concept exclusive to Net6 is the idea of network- vs. host-
-// bits: it was never envisioned that the internet would need the 320
-// undecillion addresses available in the new addressing scheme, instead the
-// idea was that some of the address would be used for direct IPv4 replacement
-// and the rest would find some other use TBD.
+// Hostmasks affects functions NextIP, PreviousIP, Enumerate, FirstAddress
+// and LastAddress; it also affects NextNet and PreviousNet which will inherit
+// the hostmask from their parent. Subnet and Supernet both require a hostmask
+// in their function calls.
 type Net6 struct {
 	net.IPNet
 	version  int
 	length   int
-	netbytes int
+	hostmask net.IPMask
 }
 
-// NewNet6 returns a new Net6 object containing ip at the specified masklen.
-func NewNet6(ip net.IP, masklen int) (Net6, error) {
-	version := EffectiveVersion(ip)
-	if version != 6 {
-		return Net6{}, ErrUnsupportedIPVer
+// NewNet6 returns an initialized Net6 object at the specified masklen with
+// the specified hostmask. If masklen or hostbits is greater than 128 it will
+// return an empty object. If a v4 address is supplied it will be trated as a
+// RFC4291 v6-encapsulated-v4 network (which is the default behavior for
+// net.IP)
+func NewNet6(ip net.IP, netmasklen, hostmasklen int) Net6 {
+	var maskMax = 128
+	if Version(ip) != 6 || netmasklen > maskMax || hostmasklen > maskMax {
+		return Net6{IPNet: nil, version:  6, length: net.IPv6len, hostmask: net.IPMask{}}
 	}
-	if masklen > 128 {
-		return Net6{}, ErrBadMaskLength
-	}
+	netmask := net.CIDRMask(netmasklen, maskMax)
+	hostmask := mkHostMask(hostmasklen)
 
-	mask := net.CIDRMask(masklen, 128)
-	n := net.IPNet{IP: ip.Mask(mask), Mask: mask}
-
-	return Net6{IPNet: n, version: version, length: net.IPv6len, netbytes: 8}, nil
+	n := net.IPNet{IP: ip.Mask(netmask), Mask: netmask}
+	return Net6{IPNet: n, version: 6, length: net.IPv4len, hostmask: hostmask}
 }
 
 // Contains returns true if ip is contained in the represented netblock
@@ -72,6 +83,17 @@ func (n Net6) ContainsNet(network Net) bool {
 	l1, _ := n.Mask().Size()
 	l2, _ := network.Mask().Size()
 	return l1 <= l2 && n.Contains(network.IP())
+}
+
+// Controls returns true if ip is within the scope of the represented block,
+// meaning that it is both inside of the netmask and outside of the hostmask.
+// In other words this function will return true if ip would be enumerated by
+// this Net6 instance
+func (n Net6) Controls(ip net.IP) bool {
+	if !n.Contains(ip) {
+		return false
+	}
+
 }
 
 // Count returns the number ot IP addresses in the represented netblock
@@ -126,6 +148,11 @@ func (n Net6) FirstAddress() net.IP {
 	return NextIP(n.IP())
 }
 
+// Hostmask returns the hostmask of the netblock
+func (n Net6) Hostmask() net.IPMask {
+	return n.hostmask
+}
+
 // LastAddress returns the last usable address for the represented network.
 // For v6 this is the last address in the block; for v4 it is generally the
 // next-to-last address, unless the block is a /31 or /32.
@@ -165,8 +192,8 @@ func (n Net6) NextIP(ip net.IP) (net.IP, error) {
 
 // NextNet takes a CIDR mask-size as an argument and attempts to create a new
 // Net object just after the current Net, at the requested mask length
-func (n Net6) NextNet(masklen int) (Net6, error) {
-	return NewNet6(NextIP(n.LastAddress()), masklen)
+func (n Net6) NextNet(masklen int) Net6 {
+	return NewNet6(NextIP(n.LastAddress()), masklen, n.hostbits)
 }
 
 // PreviousIP takes a net.IP as an argument and attempts to increment it by
@@ -185,20 +212,8 @@ func (n Net6) PreviousIP(ip net.IP) (net.IP, error) {
 // object just before the current one, at the requested mask length. If the
 // specified mask is for a larger network than the current one then the new
 // network may encompass the current one
-func (n Net6) PreviousNet(masklen int) (Net6, error) {
-	return NewNet6(PreviousIP(n.FirstAddress()), masklen)
-}
-
-// SetNetworkBytes sets the number of bytes that are meaningful for routing
-// in this netblock (the routing prefix and subnet identifier). The most
-// common setting for this would be either 16, meaning the entire block, or 8
-// if 64bit interface ID's will be generated for the last half of the address
-func (n Net6) SetNetworkBytes(i int) error {
-	if i > 8 {
-		// return an error
-	}
-	n.netbytes = i
-	return nil
+func (n Net6) PreviousNet(masklen int) Net6 {
+	return NewNet6(PreviousIP(n.FirstAddress()), masklen, n.hostbits)
 }
 
 // String returns the CIDR notation of the enclosed network e.g. 2001:db8::/16
@@ -229,7 +244,7 @@ func (n Net6) Subnet(masklen int) ([]Net6, error) {
 
 	for CompareIPs(netlist[len(netlist)-1].LastAddress(), n.LastAddress()) == -1 {
 		ng := net.IPNet{IP: NextIP(netlist[len(netlist)-1].LastAddress()), Mask: mask}
-		netlist = append(netlist, Net6{ng, n.version, n.length, n.netbytes})
+		netlist = append(netlist, Net6{ng, n.version, n.length, n.hostmask})
 	}
 	return netlist, nil
 }
@@ -254,7 +269,7 @@ func (n Net6) Supernet(masklen int) (Net6, error) {
 
 	mask := net.CIDRMask(masklen, all)
 	ng := net.IPNet{IP: n.IP().Mask(mask), Mask: mask}
-	return Net6{ng, n.version, n.length, n.netbytes}, nil
+	return Net6{ng, n.version, n.length, n.hostmask}, nil
 }
 
 // Version returns the version of IP for the enclosed netblock as an int. 6
@@ -300,4 +315,17 @@ func (n Net6) previousIPWithNetworkBytes(ip net.IP) net.IP {
 		}
 	}
 	return ip
+}
+
+func mkHostMask(masklen int) net.IPMask	{
+	mask := make([]byte, 16)
+	for i := 15; i >= 0; i-- {
+		if masklen < 8 {
+			mask[i] = ^byte(0xff << masklen)
+			break
+		}
+		mask[i] = 0xff
+		masklen -= 8
+	}
+	return mask
 }

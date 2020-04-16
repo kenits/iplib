@@ -14,19 +14,17 @@ type Net4 struct {
 	length  int
 }
 
-// NewNet4 returns a new Net4 object containing ip at the specified masklen.
-func NewNet4(ip net.IP, masklen int) (Net4, error) {
-	var maskMax int
-	version := EffectiveVersion(ip)
-	if version != 4 {
-		return Net4{}, ErrUnsupportedIPVer
-	} else {
-		maskMax = 32
+// NewNet4 returns an initialized Net4 object at the specified masklen. If
+// mask is greater than 32, or if a v6 address is supplied, an empty Net4
+// will be returned
+func NewNet4(ip net.IP, masklen int) Net4 {
+	var maskMax = 32
+	if masklen > maskMax {
+		return Net4{IPNet: nil, version: 4, length: net.IPv4len}
 	}
 	mask := net.CIDRMask(masklen, maskMax)
 	n := net.IPNet{IP: ip.Mask(mask), Mask: mask}
-
-	return Net4{IPNet: n, version: version, length: net.IPv4len}, nil
+	return Net4{IPNet: n, version: 4, length: net.IPv4len}
 }
 
 // BroadcastAddress returns the broadcast address for the represented network.
@@ -175,7 +173,7 @@ func (n Net4) NextIP(ip net.IP) (net.IP, error) {
 
 // NextNet takes a CIDR mask-size as an argument and attempts to create a new
 // Net object just after the current Net, at the requested mask length
-func (n Net4) NextNet(masklen int) (Net4, error) {
+func (n Net4) NextNet(masklen int) Net4 {
 	return NewNet4(NextIP(n.BroadcastAddress()), masklen)
 }
 
@@ -209,7 +207,7 @@ func (n Net4) PreviousIP(ip net.IP) (net.IP, error) {
 // iplib.Net{192.168.4.0/22}.Subnet(21) -> 192.168.0.0/21
 //
 // In the above case 192.168.4.0/22 is part of 192.168.0.0/21
-func (n Net4) PreviousNet(masklen int) (Net4, error) {
+func (n Net4) PreviousNet(masklen int) Net4 {
 	return NewNet4(PreviousIP(n.IP()), masklen)
 }
 

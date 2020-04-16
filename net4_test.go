@@ -3,7 +3,6 @@ package iplib
 import (
 	"net"
 	"sort"
-	"strconv"
 	"testing"
 )
 
@@ -17,8 +16,7 @@ var Network4Tests = []struct {
 	broadcast  net.IP
 	firstaddr  net.IP
 	lastaddr   net.IP
-	version    int
-	count      string // might overflow uint64
+	count      uint32
 }{
 	{
 		"10.1.2.3/8",
@@ -30,8 +28,7 @@ var Network4Tests = []struct {
 		net.IP{10, 255, 255, 255},
 		net.IP{10, 0, 0, 1},
 		net.IP{10, 255, 255, 254},
-		4,
-		"16777214",
+		16777214,
 	},
 	{
 		"192.168.1.1/23",
@@ -43,8 +40,7 @@ var Network4Tests = []struct {
 		net.IP{192, 168, 1, 255},
 		net.IP{192, 168, 0, 1},
 		net.IP{192, 168, 1, 254},
-		4,
-		"510",
+		510,
 	},
 	{
 		"192.168.1.61/26",
@@ -56,8 +52,7 @@ var Network4Tests = []struct {
 		net.IP{192, 168, 1, 63},
 		net.IP{192, 168, 1, 1},
 		net.IP{192, 168, 1, 62},
-		4,
-		"62",
+		62,
 	},
 	{
 		"192.168.1.66/26",
@@ -69,8 +64,7 @@ var Network4Tests = []struct {
 		net.IP{192, 168, 1, 127},
 		net.IP{192, 168, 1, 65},
 		net.IP{192, 168, 1, 126},
-		4,
-		"62",
+		62,
 	},
 	{
 		"192.168.1.1/30",
@@ -82,8 +76,7 @@ var Network4Tests = []struct {
 		net.IP{192, 168, 1, 3},
 		net.IP{192, 168, 1, 1},
 		net.IP{192, 168, 1, 2},
-		4,
-		"2",
+		2,
 	},
 	{
 		"192.168.1.1/31",
@@ -95,8 +88,7 @@ var Network4Tests = []struct {
 		net.IP{192, 168, 1, 1},
 		net.IP{192, 168, 1, 0},
 		net.IP{192, 168, 1, 1},
-		4,
-		"0",
+		0,
 	},
 	{
 		"192.168.1.15/32",
@@ -108,16 +100,12 @@ var Network4Tests = []struct {
 		net.IP{192, 168, 1, 15},
 		net.IP{192, 168, 1, 15},
 		net.IP{192, 168, 1, 15},
-		4,
-		"1",
+		1,
 	},
 }
 
 func TestNet4_BroadcastAddress(t *testing.T) {
 	for _, tt := range Network4Tests {
-		if tt.version == 6 {
-			continue
-		}
 		_, ipn, _ := ParseCIDR(tt.inaddrStr)
 		ipn4 := ipn.(Net4)
 		if addr := ipn4.BroadcastAddress(); !tt.broadcast.Equal(addr) {
@@ -129,12 +117,12 @@ func TestNet4_BroadcastAddress(t *testing.T) {
 func TestNet4_Version(t *testing.T) {
 	for _, tt := range Network4Tests {
 		_, ipnp, _ := ParseCIDR(tt.inaddrStr)
-		ipnn, _ := NewNet(tt.ipaddr, tt.inaddrMask)
-		if ipnp.Version() != tt.version {
-			t.Errorf("From ParseCIDR %s got Network.Version == %d, expect %d", tt.inaddrStr, ipnp.Version(), tt.version)
+		ipnn := NewNet(tt.ipaddr, tt.inaddrMask)
+		if ipnp.Version() != 4 {
+			t.Errorf("From ParseCIDR %s got Network.Version == %d, expect 4", tt.inaddrStr, ipnp.Version())
 		}
-		if ipnn.Version() != tt.version {
-			t.Errorf("From NewNet %s got Network.Version == %d, want %d", tt.inaddrStr, ipnn.Version(), tt.version)
+		if ipnn.Version() != 4 {
+			t.Errorf("From NewNet %s got Network.Version == %d, expect 4", tt.inaddrStr, ipnn.Version())
 		}
 	}
 }
@@ -143,23 +131,8 @@ func TestNet4_Count(t *testing.T) {
 	for _, tt := range Network4Tests {
 		_, ipn, _ := ParseCIDR(tt.inaddrStr)
 		ipn4 := ipn.(Net4)
-		count, _ := strconv.Atoi(tt.count)
-		if ipn4.Count() != uint32(count) {
-			t.Errorf("On %s got Network.Count == %d, want %d", tt.inaddrStr, ipn4.Count(), count)
-		}
-	}
-}
-
-func TestNet4_Count4(t *testing.T) {
-	for _, tt := range Network4Tests {
-		if tt.version == 6 {
-			continue
-		}
-		_, ipn, _ := ParseCIDR(tt.inaddrStr)
-		ipn4 := ipn.(Net4)
-		count, _ := strconv.Atoi(tt.count)
-		if ipn4.Count() != uint32(count) {
-			t.Errorf("On %s got Network.Count4 == %d, want %d", tt.inaddrStr, ipn4.Count(), count)
+		if ipn4.Count() != tt.count {
+			t.Errorf("On %s got Network.Count == %d, want %d", tt.inaddrStr, ipn4.Count(), tt.count)
 		}
 	}
 }
@@ -194,9 +167,6 @@ func TestNet4_LastAddress(t *testing.T) {
 
 func TestNet4_NetworkAddress(t *testing.T) {
 	for _, tt := range Network4Tests {
-		if tt.version == 6 {
-			continue
-		}
 		_, ipn, _ := ParseCIDR(tt.inaddrStr)
 		if addr := ipn.IP(); !tt.network.Equal(addr) {
 			t.Errorf("On %s got Network.IP == %v, want %v", tt.inaddrStr, addr, tt.network)
@@ -470,7 +440,7 @@ func TestNet4_NextNet(t *testing.T) {
 	}
 }
 
-var supernetTests = []struct {
+var supernet4Tests = []struct {
 	in      string
 	masklen int
 	out     string
@@ -503,7 +473,7 @@ var supernetTests = []struct {
 }
 
 func TestNet4_Supernet(t *testing.T) {
-	for _, tt := range supernetTests {
+	for _, tt := range supernet4Tests {
 		_, ipn, _ := ParseCIDR(tt.in)
 		ipn4 := ipn.(Net4)
 		onet, _ := ipn4.Supernet(tt.masklen)
@@ -513,7 +483,7 @@ func TestNet4_Supernet(t *testing.T) {
 	}
 }
 
-var compareNetworks = map[int]string{
+var sortNet4Tests = map[int]string{
 	0: "192.168.0.0/16",
 	1: "192.168.0.0/23",
 	2: "192.168.1.0/24",
@@ -526,12 +496,12 @@ var compareNetworks = map[int]string{
 
 func TestCompareNets(t *testing.T) {
 	a := ByNet{}
-	for _, v := range compareNetworks {
+	for _, v := range sortNet4Tests {
 		_, ipn, _ := ParseCIDR(v)
 		a = append(a, ipn)
 	}
 	sort.Sort(ByNet(a))
-	for k, v := range compareNetworks {
+	for k, v := range sortNet4Tests {
 		if a[k].String() != v {
 			t.Errorf("Subnet %s not at expected position %d. Got %s instead", v, k, a[k].String())
 		}
@@ -540,7 +510,7 @@ func TestCompareNets(t *testing.T) {
 
 }
 
-var compareCIDR = []struct {
+var compareNet4Tests = []struct {
 	network string
 	subnet  string
 	result  bool
@@ -552,7 +522,7 @@ var compareCIDR = []struct {
 }
 
 func TestNet_ContainsNetwork(t *testing.T) {
-	for _, cidr := range compareCIDR {
+	for _, cidr := range compareNet4Tests {
 		_, ipn, _ := ParseCIDR(cidr.network)
 		_, sub, _ := ParseCIDR(cidr.subnet)
 		result := ipn.ContainsNet(sub)

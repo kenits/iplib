@@ -16,11 +16,14 @@ type Net interface {
 	Version() int
 }
 
-// NewNet returns a new Net object containing ip at the specified masklen.
-func NewNet(ip net.IP, masklen int) (Net, error) {
+// NewNet returns a new Net object containing ip at the specified masklen. In
+// the Net6 case the hostbits value will be set to 0. If the masklen is set
+// to an insane value (greater than 32 for IPv4 or 128 for IPv6) an empty Net
+// will be returned
+func NewNet(ip net.IP, masklen int) Net {
 	version := Version(ip)
 	if version == 6 {
-		return NewNet6(ip, masklen)
+		return NewNet6(ip, masklen, 0)
 	}
 	return NewNet4(ip, masklen)
 }
@@ -49,10 +52,7 @@ func NewNetBetween(a, b net.IP) (Net, bool, error) {
 	ipa := NextIP(a)
 	ipb := PreviousIP(b)
 	for i := 1; i <= maskMax; i++ {
-		xnet, err := NewNet(ipa, i)
-		if err != nil {
-			return nil, exact, err
-		}
+		xnet := NewNet(ipa, i)
 
 		va := CompareIPs(xnet.FirstAddress(), ipa)
 		vb := CompareIPs(xnet.LastAddress(), ipb)
@@ -109,10 +109,10 @@ func ParseCIDR(s string) (net.IP, Net, error) {
 	masklen, _ := ipnet.Mask.Size()
 
 	if strings.Contains(s, ".") {
-		n, err := NewNet4(ForceIP4(ip), masklen)
+		n := NewNet4(ForceIP4(ip), masklen)
 		return ForceIP4(ip), n, err
 	}
 
-	n, err := NewNet6(ip, masklen)
+	n := NewNet6(ip, masklen, 0)
 	return ip, n, err
 }
