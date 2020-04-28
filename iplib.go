@@ -58,6 +58,9 @@ const (
 	// MaxIPv4 is the max size of a uint32, also the IPv4 address space
 	MaxIPv4 = 1<<32 - 1
 	MaxUint = 1<<64 - 1
+
+	IP4Version = 4
+	IP6Version = 6
 )
 
 var (
@@ -146,7 +149,7 @@ func CompareNets(a, b Net) int {
 // the supplied integer value. If you underflow the IP space it will return
 // the zero address.
 func DecrementIPBy(ip net.IP, count uint32) net.IP {
-	if EffectiveVersion(ip) == 4 {
+	if EffectiveVersion(ip) == IP4Version {
 		return DecrementIP4By(ip, count)
 	}
 	z := big.NewInt(int64(count))
@@ -179,7 +182,7 @@ func DecrementIP6By(ip net.IP, count *big.Int) net.IP {
 // DeltaIP takes two net.IP's as input and returns the difference between them
 // up to the limit of uint32.
 func DeltaIP(a, b net.IP) uint32 {
-	if EffectiveVersion(a) == 4 && EffectiveVersion(b) == 4 {
+	if EffectiveVersion(a) == IP4Version && EffectiveVersion(b) == IP4Version {
 		return DeltaIP4(a, b)
 	}
 	m := big.NewInt(int64(MaxIPv4))
@@ -226,14 +229,14 @@ func EffectiveVersion(ip net.IP) int {
 	}
 
 	if len(ip) == 4 {
-		return 4
+		return IP4Version
 	}
 
-	if is6to4(ip) {
-		return 4
+	if Is4in6(ip) {
+		return IP4Version
 	}
 
-	return 6
+	return IP6Version
 }
 
 // ExpandIP6 takes a net.IP containing an IPv6 address and returns a string of
@@ -282,87 +285,10 @@ func HexStringToIP(s string) net.IP {
 	return h
 }
 
-// IncrementIPBy returns a net.IP that is greater than the supplied net.IP by
-// the supplied integer value. If you overflow the IP space it will return
-// the all-ones address
-func IncrementIPBy(ip net.IP, count uint32) net.IP {
-	if Version(ip) == 4 {
-		return IncrementIP4By(ip, count)
-	}
-	z := big.NewInt(int64(count))
-	return IncrementIP6By(ip, z)
-}
-
-// IncrementIP4By returns a v4 net.IP that is greater than the supplied
-// net.IP by the supplied integer value. If you overflow the IP space it
-// will return 255.255.255.255
-func IncrementIP4By(ip net.IP, count uint32) net.IP {
-	i := IP4ToUint32(ip)
-	d := i + count
-
-	// check for overflow
-	if d < i {
-		return generateNetLimits(4, 255)
-	}
-	return Uint32ToIP4(d)
-}
-
-// IncrementIP6By returns a net.IP that is greater than the supplied net.IP by
-// the supplied integer value. If you overflow the IP space it will return the
-// (meaningless in this context) all-ones address
-func IncrementIP6By(ip net.IP, count *big.Int) net.IP {
-	z := IPToBigint(ip)
-	z.Add(z, count)
-	return BigintToIP6(z)
-}
-
-// IPToBinaryString returns the given net.IP as a binary string
-func IPToBinaryString(ip net.IP) string {
-	var sa []string
-	if len(ip) > 4 && EffectiveVersion(ip) == 4 {
-		ip = ForceIP4(ip)
-	}
-	for _, b := range ip {
-		sa = append(sa, fmt.Sprintf("%08b", b))
-	}
-	return strings.Join(sa, ".")
-}
-
-// IPToHexString returns the given net.IP as a hexadecimal string. This is the
-// default stringer format for v6 net.IP
-func IPToHexString(ip net.IP) string {
-	if EffectiveVersion(ip) == 4 {
-		return hex.EncodeToString(ForceIP4(ip))
-	}
-	return ip.String()
-}
-
-// IP4ToUint32 converts a net.IPv4 to a uint32.
-func IP4ToUint32(ip net.IP) uint32 {
-	if EffectiveVersion(ip) != 4 {
-		return 0
-	}
-
-	return binary.BigEndian.Uint32(ForceIP4(ip))
-}
-
-// IP6ToUint64 converts a net.IPv6 to a uint64, but only the first 64bits of
-// address are considered meaningful (any information in the last 64bits will
-// be lost). To work with entire IPv6 addresses use IPToBigint()
-func IP6ToUint64(ip net.IP) uint64 {
-	if EffectiveVersion(ip) != 6 {
-		return 0
-	}
-	ipn := make([]byte, 8)
-	copy(ipn, ip[:8])
-
-	return binary.BigEndian.Uint64(ipn)
-}
-
 // IPToARPA takes a net.IP as input and returns a string of the version-
 // appropriate ARPA DNS name
 func IPToARPA(ip net.IP) string {
-	if EffectiveVersion(ip) == 4 {
+	if EffectiveVersion(ip) == IP4Version {
 		return IP4ToARPA(ip)
 	}
 	return IP6ToARPA(ip)
@@ -399,13 +325,136 @@ func IPToBigint(ip net.IP) *big.Int {
 	return z
 }
 
+// IPToBinaryString returns the given net.IP as a binary string
+func IPToBinaryString(ip net.IP) string {
+	var sa []string
+	if len(ip) > 4 && EffectiveVersion(ip) == 4 {
+		ip = ForceIP4(ip)
+	}
+	for _, b := range ip {
+		sa = append(sa, fmt.Sprintf("%08b", b))
+	}
+	return strings.Join(sa, ".")
+}
+
+// IPToHexString returns the given net.IP as a hexadecimal string. This is the
+// default stringer format for v6 net.IP
+func IPToHexString(ip net.IP) string {
+	if EffectiveVersion(ip) == IP4Version {
+		return hex.EncodeToString(ForceIP4(ip))
+	}
+	return ip.String()
+}
+
+// IP4ToUint32 converts a net.IPv4 to a uint32.
+func IP4ToUint32(ip net.IP) uint32 {
+	if EffectiveVersion(ip) != IP4Version {
+		return 0
+	}
+
+	return binary.BigEndian.Uint32(ForceIP4(ip))
+}
+
+// IP6ToUint64 converts a net.IPv6 to a uint64, but only the first 64bits of
+// address are considered meaningful (any information in the last 64bits will
+// be lost). To work with entire IPv6 addresses use IPToBigint()
+func IP6ToUint64(ip net.IP) uint64 {
+	if EffectiveVersion(ip) != IP6Version {
+		return 0
+	}
+	ipn := make([]byte, 8)
+	copy(ipn, ip[:8])
+
+	return binary.BigEndian.Uint64(ipn)
+}
+
+// IncrementIPBy returns a net.IP that is greater than the supplied net.IP by
+// the supplied integer value. If you overflow the IP space it will return
+// the all-ones address
+func IncrementIPBy(ip net.IP, count uint32) net.IP {
+	if Version(ip) == IP4Version {
+		return IncrementIP4By(ip, count)
+	}
+	z := big.NewInt(int64(count))
+	return IncrementIP6By(ip, z)
+}
+
+// IncrementIP4By returns a v4 net.IP that is greater than the supplied
+// net.IP by the supplied integer value. If you overflow the IP space it
+// will return 255.255.255.255
+func IncrementIP4By(ip net.IP, count uint32) net.IP {
+	i := IP4ToUint32(ip)
+	d := i + count
+
+	// check for overflow
+	if d < i {
+		return generateNetLimits(4, 255)
+	}
+	return Uint32ToIP4(d)
+}
+
+// IncrementIP6By returns a net.IP that is greater than the supplied net.IP by
+// the supplied integer value. If you overflow the IP space it will return the
+// (meaningless in this context) all-ones address
+func IncrementIP6By(ip net.IP, count *big.Int) net.IP {
+	z := IPToBigint(ip)
+	z.Add(z, count)
+	return BigintToIP6(z)
+}
+
+// Is4in6 returns true if the supplied net.IP is an IPv4 address encapsulated
+// in an IPv6 address. It is very common for the net library to re-write v4
+// addresses into v6 addresses prefixed 0000:0000:0000:0000:ffff. When this
+// happens net.IP will have a 16-byte array but always return a v4 address (in
+// fact there is no way to force it to behave as a v6 address), which has lead
+// to many confused message board comments
+func Is4in6(ip net.IP) bool {
+	if len(ip) < 16 {
+		return false
+	}
+	if ip[0] == 0x00 && ip[1] == 0x00 && ip[2] == 0x00 && ip[3] == 0x00 &&
+		ip[4] == 0x00 && ip[5] == 0x00 && ip[6] == 0x00 && ip[7] == 0x00 &&
+		ip[8] == 0x00 && ip[9] == 0x00 && ip[10] == 0xff && ip[11] == 0xff {
+		return true
+	}
+	return false
+}
+
+// IsAllOnes returns true if the supplied net.IP is the all-zeroes address,
+// if given a 6-to-4 address this function will treat it as IPv4
+func IsAllOnes(ip net.IP) bool {
+	if EffectiveVersion(ip) == 4 {
+		ip = ForceIP4(ip)
+	}
+	for _, b := range ip {
+		if b != 255 {
+			return false
+		}
+	}
+	return true
+}
+
+// IsAllOnes returns true if the supplied net.IP is the all-ones address, if
+// given a 4-in-6 address this function will treat it as IPv4
+func IsAllZeroes(ip net.IP) bool {
+	if EffectiveVersion(ip) == 4 {
+		ip = ForceIP4(ip)
+	}
+	for _, b := range ip {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // NextIP returns a net.IP incremented by one from the input address. This
 // function is roughly as fast for v4 as IncrementIP4By(1) but is consistently
 // 4x faster on v6 than IncrementIP6By(1). The bundled tests provide
 // benchmarks doing so, as well as iterating over the entire v4 address space.
 func NextIP(ip net.IP) net.IP {
 	var ipn []byte
-	if Version(ip) == 4 {
+	if Version(ip) == IP4Version {
 		ipn = make([]byte, 4)
 		copy(ipn, ip)
 	} else {
@@ -428,7 +477,7 @@ func NextIP(ip net.IP) net.IP {
 // benchmarks doing so, as well as iterating over the entire v4 address space.
 func PreviousIP(ip net.IP) net.IP {
 	var ipn []byte
-	if Version(ip) == 4 {
+	if Version(ip) == IP4Version {
 		ipn = make([]byte, 4)
 		copy(ipn, ip.To4())
 	} else {
@@ -470,15 +519,15 @@ func Version(ip net.IP) int {
 	}
 
 	if len(ip) == 4 {
-		return 4
+		return IP4Version
 	}
 
-	return 6
+	return IP6Version
 }
 
 func generateNetLimits(version int, filler byte) net.IP {
 	var b []byte
-	if version == 6 {
+	if version == IP6Version {
 		version = 16
 	}
 	b = make([]byte, version)
@@ -486,14 +535,4 @@ func generateNetLimits(version int, filler byte) net.IP {
 		b[i] = filler
 	}
 	return b
-}
-
-func is6to4(ip net.IP) bool {
-	// addresses prefixed 0000:0000:0000:0000:ffff
-	if ip[0] == 0x00 && ip[1] == 0x00 && ip[2] == 0x00 && ip[3] == 0x00 &&
-		ip[4] == 0x00 && ip[5] == 0x00 && ip[6] == 0x00 && ip[7] == 0x00 &&
-		ip[8] == 0x00 && ip[9] == 0x00 && ip[10] == 0xff && ip[11] == 0xff {
-		return true
-	}
-	return false
 }
