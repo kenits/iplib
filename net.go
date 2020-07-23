@@ -83,7 +83,7 @@ func ParseCIDR(s string) (net.IP, Net, error) {
 	}
 	if strings.Contains(s, ".") {
 		masklen, _ := ipnet.Mask.Size()
-		return ip[12:15], NewNet(ip.To4(), masklen), err
+		return ip[12:], NewNet(ip.To4(), masklen), err
 	}
 
 	return ip, Net{*ipnet, 6, 16}, err
