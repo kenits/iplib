@@ -6,7 +6,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/c-robinson/iplib"
+	"github.com/kenits/iplib"
 )
 
 var RFC7217AddrTests = []struct {

@@ -1,7 +1,7 @@
 package iana
 
 import (
-	"github.com/c-robinson/iplib"
+	"github.com/kenits/iplib"
 	"net"
 	"testing"
 )

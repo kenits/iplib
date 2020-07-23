@@ -19,7 +19,7 @@ The data-set for the IANA registries is available from:
 package iana
 
 import (
-	"github.com/c-robinson/iplib"
+	"github.com/kenits/iplib"
 	"net"
 	"sort"
 )

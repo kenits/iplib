@@ -1,3 +1,3 @@
-module github.com/c-robinson/iplib
+module github.com/kenits/iplib
 
 go 1.12
